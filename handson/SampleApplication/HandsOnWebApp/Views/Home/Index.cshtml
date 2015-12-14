@@ -1,0 +1,36 @@
+﻿@model IEnumerable<HandsOnWebApp.Models.LogData>
+@{
+    ViewBag.Title = "Home Page";
+}
+
+<div class="jumbotron">
+    <h1>HandsOn Sample</h1>
+    <p class="lead">このアプリケーションは <b>@System.Environment.MachineName</b> 上で動作しています</p>
+</div>
+
+<div class="row">
+    <div class="col-md-2">
+        <h2>Insert</h2>
+        <p>@Html.ActionLink("追加画面へ", "Add", "Home", new { @class = "btn btn-default btn-primary" })</p>
+    </div>
+    <div class="col-md-8">
+        <h2>Log</h2>
+        <p>
+            <table class="table table-striped table-bordered table-hover">
+                <thead>
+                    <tr><td>ID</td><td>Time</td><td>Message</td></tr>
+                </thead>
+                <tbody>
+                    @foreach(var data in Model)
+                    {
+                        <tr>
+                            <td>@data.ID</td>
+                            <td>@data.Time.ToString("yyyy/MM/dd HH:mm:ss")</td>
+                            <td>@data.Message</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </p>
+    </div>
+</div>

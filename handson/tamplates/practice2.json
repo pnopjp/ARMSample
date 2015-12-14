@@ -1,0 +1,348 @@
+﻿{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "DNS Name": {
+      "type": "string",
+      "metadata": {
+        "description": "インターネット上のユニークなDNS名（ホスト名）"
+      }
+    },
+    "handson Admin Name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "handson Admin Login Password": {
+      "type": "securestring"
+    },
+    "HandsOn Database Name": {
+      "type": "string",
+      "metadata": {
+        "description": "データベース名"
+      }
+    },
+    "HandsOn DatabaseServer Name": {
+      "type": "string",
+      "metadata": {
+        "description": "データベースサーバー名"
+      }
+    },
+    "Number of Instances": {
+      "type": "int",
+      "minValue": 1,
+      "maxValue": 4,
+      "defaultValue": 2,
+      "metadata": {
+        "description": "作成するVMのインスタンス数"
+      }
+    }
+  },
+  "variables": {
+    "StorageAccountName": "[concat('mshandson', uniqueString(resourceGroup().id))]",
+    "HandsOnVNETPrefix": "10.0.0.0/16",
+    "HandsOnVNETSubnet1Name": "Subnet-1",
+    "HandsOnVNETSubnet1Prefix": "10.0.0.0/24",
+    "PublicIPAddressName": "HandsOnPublicIP",
+    "PublicIPAddressType": "Dynamic",
+    "LoadBalancerName": "[concat('loadBalancer', uniqueString(resourceGroup().id))]",
+    "PublicIPAddressID": "[resourceId('Microsoft.Network/publicIPAddresses',variables('PublicIPAddressName'))]",
+    "LoadBalancerID": "[resourceId('Microsoft.Network/loadBalancers',variables('LoadBalancerName'))]",
+    "FrontEndIPConfigID": "[concat(variables('LoadBalancerID'),'/frontendIPConfigurations/loadBalancerFrontEnd')]",
+    "LoadBalancerPoolID": "[concat(variables('LoadBalancerID'),'/backendAddressPools/loadBalancerBackEnd')]",
+    "LoadBalancerProbeID": "[concat(variables('LoadBalancerID'),'/probes/tcpProbe')]",
+    "AvailabilitySetName": "VMAvailabiritySet",
+    "VNETName": "HandsOnVNET",
+    "VNETID": "[resourceId('Microsoft.Network/virtualNetworks',variables('VNETName'))]",
+    "SubnetRef": "[concat(variables('VNETID'),'/subnets/',variables('HandsOnVNETSubnet1Name'))]",
+    "NICNamePrefix": "HandsOnNIC",
+    "HandsOnVMImagePublisher": "MicrosoftWindowsServer",
+    "HandsOnVMImageOffer": "WindowsServer",
+    "HandsOnVMOSDiskName": "HandsOnVMOSDisk",
+    "HandsOnVMVmSize": "Standard_D1",
+    "HandsOnVMVnetID": "[resourceId('Microsoft.Network/virtualNetworks', variables('VNETName'))]",
+    "HandsOnVMSubnetRef": "[concat(variables('HandsOnVMVnetID'), '/subnets/', variables('HandsOnVNETSubnet1Name'))]",
+    "HandsOnVMStorageAccountContainerName": "vhds",
+    "HandsOnVMNamePrefix": "HandsOnVM",
+    "HandsOnVMWindowsOSVersion": "2012-R2-Datacenter",
+    "AssetLocation": "",
+    "VMDSCModule": "http://mshandson.blob.core.windows.net/practice/ConfigWebServer.zip",
+    "VMDSCConfigurationFunction": "ConfigWebServer.ps1\\HandsonWebApp"
+  },
+  "resources": [
+    {
+      "apiVersion": "2015-06-15",
+      "type": "Microsoft.Network/publicIPAddresses",
+      "name": "[variables('PublicIPAddressName')]",
+      "location": "[resourceGroup().location]",
+      "tags": {
+        "displayName": "PublicIPAddress",
+        "group": "MSHandsOn"
+      },
+      "properties": {
+        "publicIPAllocationMethod": "[variables('PublicIPAddressType')]",
+        "dnsSettings": {
+          "domainNameLabel": "[parameters('DNS Name')]"
+        }
+      }
+    },
+    {
+      "name": "[variables('StorageAccountName')]",
+      "type": "Microsoft.Storage/storageAccounts",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2015-06-15",
+      "dependsOn": [ ],
+      "tags": {
+        "displayName": "Storage",
+        "group": "MSHandsOn"
+      },
+      "properties": {
+        "accountType": "Standard_LRS"
+      }
+    },
+    {
+      "name": "[variables('VNETName')]",
+      "type": "Microsoft.Network/virtualNetworks",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2015-06-15",
+      "dependsOn": [ ],
+      "tags": {
+        "displayName": "VNET",
+        "group": "MSHandsOn"
+      },
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "[variables('HandsOnVNETPrefix')]"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "[variables('HandsOnVNETSubnet1Name')]",
+            "properties": {
+              "addressPrefix": "[variables('HandsOnVNETSubnet1Prefix')]"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "2015-06-15",
+      "name": "[variables('loadBalancerName')]",
+      "type": "Microsoft.Network/loadBalancers",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[concat('Microsoft.Network/publicIPAddresses/', variables('PublicIPAddressName'))]"
+      ],
+      "tags": {
+        "displayName": "LoadBalancer",
+        "group": "MSHandsOn"
+      },
+      "properties": {
+        "frontendIPConfigurations": [
+          {
+            "name": "loadBalancerFrontEnd",
+            "properties": {
+              "publicIPAddress": {
+                "id": "[variables('PublicIPAddressID')]"
+              }
+            }
+          }
+        ],
+        "backendAddressPools": [
+          {
+            "name": "loadBalancerBackEnd"
+          }
+        ],
+        "loadBalancingRules": [
+          {
+            "name": "loadBalancingRule",
+            "properties": {
+              "frontendIPConfiguration": {
+                "id": "[variables('FrontEndIPConfigID')]"
+              },
+              "backendAddressPool": {
+                "id": "[variables('LoadBalancerPoolID')]"
+              },
+              "protocol": "Tcp",
+              "frontendPort": 80,
+              "backendPort": 80,
+              "enableFloatingIP": false,
+              "loadDistribution": "Default",
+              "idleTimeoutInMinutes": 5,
+              "probe": {
+                "id": "[variables('LoadBalancerProbeID')]"
+              }
+            }
+          },
+          {
+            "name": "rdp",
+            "properties": {
+              "frontendIPConfiguration": {
+                "id": "[variables('FrontEndIPConfigID')]"
+              },
+              "backendAddressPool": {
+                "id": "[variables('LoadBalancerPoolID')]"
+              },
+              "protocol": "Tcp",
+              "backendPort": 3389,
+              "frontendPort": 5000
+            }
+          }
+        ],
+        "probes": [
+          {
+            "name": "tcpProbe",
+            "properties": {
+              "protocol": "Tcp",
+              "port": 80,
+              "intervalInSeconds": 5,
+              "numberOfProbes": 2
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Compute/availabilitySets",
+      "name": "[variables('AvailabilitySetName')]",
+      "apiVersion": "2015-06-15",
+      "location": "[resourceGroup().location]",
+      "tags": {
+        "displayName": "AvailabilitySet",
+        "group": "MSHandsOn"
+      },
+      "properties": {
+        "platformFaultDomainCount": 3
+      }
+    },
+    {
+      "apiVersion": "2015-06-15",
+      "type": "Microsoft.Network/networkInterfaces",
+      "name": "[concat(variables('NICNamePrefix'), copyindex())]",
+      "location": "[resourceGroup().location]",
+      "copy": {
+        "name": "nicLoop",
+        "count": "[parameters('Number of Instances')]"
+      },
+      "tags": {
+        "displayName": "[concat('NIC',copyindex())]",
+        "group": "MSHandsOn"
+      },
+      "dependsOn": [
+        "[concat('Microsoft.Network/virtualNetworks/', variables('VNETName'))]",
+        "[concat('Microsoft.Network/loadBalancers/', variables('LoadBalancerName'))]"
+      ],
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfiguration",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "subnet": {
+                "id": "[variables('SubnetRef')]"
+              },
+              "loadBalancerBackendAddressPools": [
+                {
+                  "id": "[concat(variables('LoadBalancerID'), '/backendAddressPools/loadBalancerBackEnd')]"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "[concat(variables('HandsOnVMNamePrefix'), copyindex())]",
+      "type": "Microsoft.Compute/virtualMachines",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2015-06-15",
+      "dependsOn": [
+        "[concat('Microsoft.Storage/storageAccounts/', variables('StorageAccountName'))]",
+        "[concat('Microsoft.Network/networkInterfaces/', variables('NICNamePrefix'), copyindex())]",
+        "[concat('Microsoft.Compute/availabilitySets/', variables('AvailabilitySetName'))]"
+      ],
+      "copy": {
+        "name": "VMLoop",
+        "count": "[parameters('Number of Instances')]"
+      },
+      "tags": {
+        "displayName": "[concat('WinVM',copyindex())]",
+        "group": "MSHandsOn"
+      },
+      "properties": {
+        "availabilitySet": {
+          "id": "[resourceId('Microsoft.Compute/availabilitySets',variables('AvailabilitySetName'))]"
+        },
+        "hardwareProfile": {
+          "vmSize": "[variables('HandsOnVMVmSize')]"
+        },
+        "osProfile": {
+          "computerName": "[concat(variables('HandsOnVMNamePrefix'), copyindex())]",
+          "adminUsername": "[parameters('handson Admin Name')]",
+          "adminPassword": "[parameters('handson Admin Login Password')]"
+        },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "[variables('HandsOnVMImagePublisher')]",
+            "offer": "[variables('HandsOnVMImageOffer')]",
+            "sku": "[variables('HandsOnVMWindowsOSVersion')]",
+            "version": "latest"
+          },
+          "osDisk": {
+            "name": "HandsOnVMOSDisk",
+            "vhd": {
+              "uri": "[concat('http://', variables('StorageAccountName'), '.blob.core.windows.net/', variables('HandsOnVMStorageAccountContainerName'), '/', variables('HandsOnVMOSDiskName'), copyindex(), '.vhd')]"
+            },
+            "caching": "ReadWrite",
+            "createOption": "FromImage"
+          }
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces/', concat(variables('NICNamePrefix'), copyindex()))]"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Compute/virtualMachines/extensions",
+      "name": "[concat(variables('HandsOnVMNamePrefix'), copyindex(),'/ConfigureSPServer')]",
+      "apiVersion": "2015-06-15",
+      "copy": {
+        "name": "VMExtensionLoop",
+        "count": "[parameters('Number of Instances')]"
+      },
+      "dependsOn": [
+        "[concat('Microsoft.Compute/virtualMachines/', variables('HandsOnVMNamePrefix'), copyindex())]"
+      ],
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "publisher": "Microsoft.Powershell",
+        "type": "DSC",
+        "typeHandlerVersion": "2.6",
+        "settings": {
+          "ModulesUrl": "[variables('VMDSCModule')]",
+          "ConfigurationFunction": "[variables('VMDSCConfigurationFunction')]",
+          "Properties": {
+            "AdminCreds": {
+              "UserName": "[parameters('handson Admin Name')]",
+              "Password": "PrivateSettingsRef:AdminPassword"
+            },
+            "DatabaseName": "[parameters('HandsOn Database Name')]",
+            "DatabaseServer": "[parameters('HandsOn DatabaseServer Name')]",
+            "DatabaseServerFQDN": "[concat(parameters('HandsOn DatabaseServer Name'),'.database.windows.net')]"
+          }
+        },
+        "protectedSettings": {
+          "Items": {
+            "AdminPassword": "[parameters('handson Admin Login Password')]"
+          }
+        }
+      }
+    }
+  ],
+  "outputs": {
+  }
+}

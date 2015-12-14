@@ -1,0 +1,85 @@
+﻿{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "handson Admin Name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "handson Admin Login Password": {
+      "type": "securestring"
+    }
+  },
+  "variables": {
+    "HandsOndbName": "[concat('handsondb', uniqueString(resourceGroup().id))]",
+    "HandsOndbsCollation": "SQL_Latin1_General_CP1_CI_AS",
+    "HandsOndbsEdition": "Basic",
+    "HandsOndbsRequestedServiceObjectiveName": "Basic",
+    "HandsOndbsName": "HandsOnDB"
+  },
+  "resources": [
+    {
+      "name": "[variables('HandsOndbName')]",
+      "type": "Microsoft.Sql/servers",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2014-04-01-preview",
+      "dependsOn": [ ],
+      "tags": {
+        "displayName": "SQLDatabaseServer",
+        "group": "MSHandsOn"
+      },
+      "properties": {
+        "administratorLogin": "[parameters('handson Admin Name')]",
+        "administratorLoginPassword": "[parameters('handson Admin Login Password')]"
+      },
+      "resources": [
+        {
+          "name": "AllowAllWindowsAzureIps",
+          "type": "firewallrules",
+          "location": "[resourceGroup().location]",
+          "apiVersion": "2014-04-01-preview",
+          "dependsOn": [
+            "[concat('Microsoft.Sql/servers/', variables('HandsOndbName'))]"
+          ],
+          "properties": {
+            "startIpAddress": "0.0.0.0",
+            "endIpAddress": "0.0.0.0"
+          }
+        },
+        {
+          "name": "[variables('HandsOndbsName')]",
+          "type": "databases",
+          "location": "[resourceGroup().location]",
+          "apiVersion": "2014-04-01-preview",
+          "dependsOn": [
+            "[variables('HandsOndbName')]"
+          ],
+          "tags": {
+            "displayName": "SQLDatabaseDB",
+            "group": "MSHandsOn"
+          },
+          "properties": {
+            "collation": "[variables('HandsOndbsCollation')]",
+            "edition": "[variables('HandsOndbsEdition')]",
+            "maxSizeBytes": "1073741824",
+            "requestedServiceObjectiveName": "[variables('HandsOndbsRequestedServiceObjectiveName')]"
+          }
+        }
+      ]
+    }
+  ],
+  "outputs": {
+    "DatabaseName": {
+      "value": "[variables('HandsOndbsName')]",
+      "type": "string"
+    },
+    "DBServerName": {
+      "value": "[concat('handsondb', uniqueString(resourceGroup().id))]",
+      "type": "string"
+    },
+    "DBServerFQDN": {
+      "value": "[concat('handsondb', uniqueString(resourceGroup().id),'.database.windows.net')]",
+      "type": "string"
+    }
+  }
+}

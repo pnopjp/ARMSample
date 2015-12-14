@@ -1,0 +1,10 @@
+﻿[ClassVersion("1.0.0"), FriendlyName("NTFSPermission")] 
+class NTFSPermission : OMI_BaseResource
+{
+  [Key] string Path;
+  [Key] string Account;
+  [write,ValueMap{"ReadAndExecute", "Modify", "FullControl"},Values{"ReadAndExecute", "Modify", "FullControl"}] string Rights;
+  [write,ValueMap{"Present", "Absent"},Values{"Present", "Absent"}] string Ensure;
+  [write,ValueMap{"Allow", "Deny"},Values{"Allow", "Deny"}] string Access;
+  [write] boolean NoInherit;
+};
